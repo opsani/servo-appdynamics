@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "servo-appdynamics"
+version = "0.7.0"
+description = "AppDynamics connector for Opsani Servo"
+authors = ["Daniel Howell <daniel@opsani.com>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+servox = "^0.9.5"
+pydantic = "^1.8"
+httpx = "^0.16.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.2"
+pytest-asyncio = "^0.14.0"
+respx = "^0.16.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."servo.connectors"]
+"servo-appdynamics" = "servo_appdynamics:AppdynamicsConnector"
