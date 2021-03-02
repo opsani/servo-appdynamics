@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "servo-appdynamics"
-version = "0.7.0"
+version = "0.7.1"
 description = "AppDynamics connector for Opsani Servo"
 authors = ["Daniel Howell <daniel@opsani.com>"]
 license = "Apache-2.0"
