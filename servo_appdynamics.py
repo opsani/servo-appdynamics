@@ -89,6 +89,7 @@ class AppdynamicsConfiguration(servo.BaseConfiguration):
             account='account-replace',
             password='password-replace',
             app_id='app-replace',
+            tier='tier-replace',
             metrics=[
                 AppdynamicsMetric(
                     "main_throughput",
@@ -376,6 +377,31 @@ class AppdynamicsConnector(servo.BaseConnector):
         measurement = servo.Measurement(readings=all_readings)
         return measurement
 
+    async def _query_nodes(self):
+        self.logger.trace(
+            f"Querying AppDynamics nodes"
+        )
+
+        async with httpx.AsyncClient(
+                base_url=self.config.api_url,
+        ) as client:
+            try:
+                response = await client.get(f"applications/{self.config.app_id}/tiers/{self.config.tier}/nodes",
+                                            auth=(f"{self.config.username.get_secret_value()}@"
+                                                  f"{self.config.account.get_secret_value()}",
+                                                  self.config.password.get_secret_value()))
+                response.raise_for_status()
+            except (httpx.HTTPError, httpcore._exceptions.ReadTimeout, httpcore._exceptions.ConnectError) as error:
+                self.logger.trace(f"HTTP error encountered during GET {response.url}: {error}")
+                raise
+
+        data = response.json()
+        nodes = [node['name'] for node in data]
+
+        self.logger.trace(f"Retrieved nodes for tier {self.config.tier}: {nodes}")
+
+        return nodes
+
     async def _query_appd(
             self, metric: AppdynamicsMetric, start: datetime, end: datetime
     ) -> List[servo.TimeSeries]:
@@ -383,33 +409,167 @@ class AppdynamicsConnector(servo.BaseConnector):
             base_url=self.config.api_url, metric=metric, start=start, end=end
         )
 
-        # Collect node information for optimization service
-        # self.logger.trace(
-        #     f"Querying AppDynamics nodes"
-        # )
-        #
-        # async with httpx.AsyncClient(
-        #         base_url=self.config.api_url,
-        # ) as client:
-        #     try:
-        #         response = await client.get(f"applications/{self.config.app_id}/tiers/{self.config.tier}/nodes",
-        #                                     auth=(f"{self.config.user_auth}", self.config.password))
-        #         response.raise_for_status()
-        #     except (httpx.HTTPError, httpcore._exceptions.ReadTimeout, httpcore._exceptions.ConnectError) as error:
-        #         self.logger.trace(f"HTTP error encountered during GET {response.url}: {error}")
-        #         raise
-        #
-        # data = response.json()
-        # nodes = [node['name'] for node in data]
-        #
-        # self.logger.trace(f"Retrieved nodes for tier {self.config.tier}: {nodes}")
+        if 'tuning' not in metric.query:
+
+            # Collect nodes
+            nodes = await self._query_nodes()
+
+            # Filter only actively reporting nodes
+            all_nodes_response = await asyncio.gather(
+                *list(map(lambda m: self._query_appd_active_nodes(m, metric, start, end), nodes))
+            )
+            active_nodes = list(filter(lambda x: x is not None, all_nodes_response))
+
+            # Begin metric collection and aggregation for active nodes
+            node_readings = await asyncio.gather(
+                *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes))
+            )
+
+            aggregate_data_points = []
+
+            for node_reading in node_readings:
+                for time_series in node_reading:
+                    aggregate_data_points.append(time_series.data_points.value)
+
+            if metric.unit == 'rpm':
+
+                aggregate_data = sum(aggregate_data_points)
+
+            elif metric.unit == 'ms':
+
+                aggregate_data = sum(aggregate_data_points) / len(aggregate_data_points)
+
+            # Reading from first node retrieved for time information with aggregation value data substituted from individual retrievals above
+            appdynamics_request = AppdynamicsRequest(
+                base_url=self.config.api_url, metric=metric, start=start, end=end
+            )
+
+            self.logger.trace(
+                f"Querying AppDynamics (`{metric.query}`): {appdynamics_request.endpoint}"
+            )
+
+            metric_head = '|'.join(metric.split('|')[:-2])
+            metric_tail = metric.split('|')[-1]
+            metric_path_substitution = f"{metric_head}|{nodes[0]}|{metric_tail}"
+
+            params = appdynamics_request.params
+            params.update({'metric-path': metric_path_substitution})
+
+            async with httpx.AsyncClient(
+                    base_url=self.config.api_url,
+                    params=params,
+            ) as client:
+                try:
+                    response = await client.get(f"applications/{self.config.app_id}/metric-data",
+                                                auth=(f"{self.config.username.get_secret_value()}@"
+                                                      f"{self.config.account.get_secret_value()}",
+                                                      self.config.password.get_secret_value()))
+                    response.raise_for_status()
+                except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
+                    self.logger.trace(f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}")
+                    raise
+
+            data = response.json()[0]
+            self.logger.trace(f"Got response data for metric {metric_path_substitution}: {data}")
+
+            readings = []
+
+            # TEMP: just to see output
+            for result_dict in data["metricValues"]:
+                self.logger.info(
+                    f"Captured {float(aggregate_data)} at {result_dict['startTimeInMillis']} for aggregate metric: {metric}"
+                )
+
+            metric_path = data["metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Calls per Minute"
+            metric_name = data["metricName"]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
+
+            for result_dict in data["metricValues"]:
+
+                data_points: List[servo.DataPoint] = [servo.DataPoint(
+                    metric, result_dict['startTimeInMillis'], float(aggregate_data)
+                )]
+
+                readings.append(
+                    servo.TimeSeries(
+                        metric,
+                        data_points,
+                        id=f"{{metric_path={metric_path}, metric_name={metric_name}}}",
+                    )
+                )
+
+            return readings
+
+
+        elif 'tuning' in metric.query:
+
+            self.logger.trace(
+                f"Querying AppDynamics (`{metric.query}`): {appdynamics_request.endpoint}"
+            )
+            async with httpx.AsyncClient(
+                    base_url=self.config.api_url,
+                    params=appdynamics_request.params,
+            ) as client:
+                try:
+                    response = await client.get(f"applications/{self.config.app_id}/metric-data",
+                                                auth=(f"{self.config.username.get_secret_value()}@"
+                                                      f"{self.config.account.get_secret_value()}",
+                                                      self.config.password.get_secret_value()))
+                    response.raise_for_status()
+                except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
+                    self.logger.trace(f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}")
+                    raise
+
+            data = response.json()[0]
+            self.logger.trace(f"Got response data for metric {metric}: {data}")
+
+            readings = []
+
+            # TEMP: just to see output
+            for result_dict in data["metricValues"]:
+                self.logger.info(
+                    f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric}"
+                )
+
+            metric_path = data["metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-tuning|Calls per Minute"
+            metric_name = data["metricName"]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
+
+            for result_dict in data["metricValues"]:
+
+                data_points: List[servo.DataPoint] = [servo.DataPoint(
+                    metric, result_dict['startTimeInMillis'], float(result_dict['value'])
+                )]
+
+                readings.append(
+                    servo.TimeSeries(
+                        metric,
+                        data_points,
+                        id=f"{{metric_path={metric_path}, metric_name={metric_name}}}",
+                    )
+                )
+
+            return readings
+
+    async def _query_appd_active_nodes(
+            self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
+    ):
+        appdynamics_request = AppdynamicsRequest(
+            base_url=self.config.api_url, metric=metric, start=start, end=end
+        )
+
+        metric_head = '|'.join(metric.query.split('|')[:-2])
+        metric_tail = metric.query.split('|')[-1]
+        metric_path_substitution = f"{metric_head}|{individual_node}|{metric_tail}"
 
         self.logger.trace(
-            f"Querying AppDynamics (`{metric.query}`): {appdynamics_request.endpoint}"
+            f"Querying AppDynamics (`{metric_path_substitution}`): {appdynamics_request.endpoint}"
         )
+
+        params = appdynamics_request.params
+        params.update({'metric-path': metric_path_substitution})
+
         async with httpx.AsyncClient(
                 base_url=self.config.api_url,
-                params=appdynamics_request.params,
+                params=params,
         ) as client:
             try:
                 response = await client.get(f"applications/{self.config.app_id}/metric-data",
@@ -421,33 +581,79 @@ class AppdynamicsConnector(servo.BaseConnector):
                 self.logger.trace(f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}")
                 raise
 
-        data = response.json()[0]
-        self.logger.trace(f"Got response data for metric {metric}: {data}")
 
-        readings = []
+        node_data = response.json()[0]
+
+        if node_data["metricValues"]:
+
+            self.logger.trace(f"Verified active node: {individual_node}")
+            return individual_node
+
+        else:
+
+            self.logger.trace(f"Found inactive node: {individual_node}")
+            return None
+
+    async def _appd_node_response(
+            self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
+    ) -> List[servo.TimeSeries]:
+        appdynamics_request = AppdynamicsRequest(
+            base_url=self.config.api_url, metric=metric, start=start, end=end
+        )
+
+        metric_head = '|'.join(metric.query.split('|')[:-2])
+        metric_tail = metric.query.split('|')[-1]
+        metric_path_substitution = f"{metric_head}|{individual_node}|{metric_tail}"
+
+        self.logger.trace(
+            f"Querying AppDynamics (`{metric_path_substitution}`): {appdynamics_request.endpoint}"
+        )
+
+        params = appdynamics_request.params
+        params.update({'metric-path': metric_path_substitution})
+
+        async with httpx.AsyncClient(
+                base_url=self.config.api_url,
+                params=params,
+        ) as client:
+            try:
+                response = await client.get(f"applications/{self.config.app_id}/metric-data",
+                                            auth=(f"{self.config.username.get_secret_value()}@"
+                                                  f"{self.config.account.get_secret_value()}",
+                                                  self.config.password.get_secret_value()))
+                response.raise_for_status()
+            except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
+                self.logger.trace(f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}")
+                raise
+
+        node_data = response.json()[0]
+        self.logger.trace(f"Got response data for metric {metric_path_substitution}: {node_data}")
+
+
+
+        node_readings = []
 
         # TEMP: just to see output
-        for result_dict in data["metricValues"]:
+        for result_dict in node_data["metricValues"]:
             self.logger.info(
-                f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric}"
+                f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric_path_substitution}"
             )
 
-        metric_path = data["metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Calls per Minute"
-        metric_name = data["metricName"]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
 
-        for result_dict in data["metricValues"]:
+        for result_dict in node_data["metricValues"]:
 
             data_points: List[servo.DataPoint] = [servo.DataPoint(
                 metric, result_dict['startTimeInMillis'], float(result_dict['value'])
             )]
 
-            readings.append(
+            node_readings.append(
                 servo.TimeSeries(
                     metric,
                     data_points,
-                    id=f"{{metric_path={metric_path}, metric_name={metric_name}}}",
                 )
             )
 
-        return readings
+        return node_readings
+
+
 
