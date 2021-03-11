@@ -247,8 +247,6 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     config: AppdynamicsConfiguration
 
-    active_nodes: list = []
-
     @servo.on_event()
     async def check(
         self,
@@ -342,30 +340,38 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
         # Find actively reporting nodes
-
         # Collect nodes
         nodes = await self._query_nodes()
+        main_nodes = list(filter(lambda x: 'tuning' not in x, nodes))
+        tuning_nodes = list(filter(lambda x: 'tuning' in x, nodes))
 
         # Filter only actively reporting nodes
-        all_nodes_response = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_active_nodes(m, metrics__[0], start, end), nodes))
+        all_main_nodes_response = await asyncio.gather(
+            *list(map(lambda m: self._query_appd_active_nodes(m, metrics__[0], start, end), main_nodes))
         )
-        self.active_nodes = list(filter(lambda x: x is not None, all_nodes_response))
-        self.logger.info(f"Found {len(self.active_nodes)} active nodes: {self.active_nodes}")
+        active_main_nodes = list(filter(lambda x: x is not None, all_main_nodes_response))
+        self.logger.info(f"Found {len(self.active_main_nodes)} active nodes: {active_main_nodes}")
+
+        tuning_nodes_response = await asyncio.gather(
+            *list(map(lambda m: self._query_appd_active_nodes(m, metrics__[0], start, end), tuning_nodes))
+        )
+        active_tuning_node = list(filter(lambda x: x is not None, tuning_nodes_response))[0]
+        self.logger.info(f"Found active tuning node: {active_tuning_node}")
+
 
         # Capture the measurements
         self.logger.info(f"Querying AppDynamics for {len(metrics__)} metrics...")
 
-        # Capture measurements directly that do not require aggregation/processing
+        # Capture tuning measurements directly that do not require aggregation/processing
         direct_metrics = list(filter(lambda m: 'main' not in m.name, metrics__))
         direct_readings = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_direct(m, start, end), direct_metrics))
+            *list(map(lambda m: self._query_appd_direct(m, start, end, active_tuning_node), direct_metrics))
         )
 
         # Capture measurements that require aggregation
         aggregate_metrics = list(filter(lambda m: 'main' in m.name, metrics__))
         aggregate_readings = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_aggregate(m, start, end), aggregate_metrics))
+            *list(map(lambda m: self._query_appd_aggregate(m, start, end, active_main_nodes), aggregate_metrics))
         )
 
         # Combine and clean
@@ -378,7 +384,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         return measurement
 
     async def _query_appd_direct(
-            self, metric: AppdynamicsMetric, start: datetime, end: datetime
+            self, metric: AppdynamicsMetric, start: datetime, end: datetime, active_node: str
     ) -> List[servo.TimeSeries]:
         appdynamics_request = AppdynamicsRequest(
             base_url=self.config.api_url, metric=metric, start=start, end=end
@@ -387,6 +393,14 @@ class AppdynamicsConnector(servo.BaseConnector):
         self.logger.trace(
             f"Querying AppDynamics (`{metric.query}`): {appdynamics_request.endpoint}"
         )
+
+        metric_head = '|'.join(metric.query.split('|')[:-2])
+        metric_tail = metric.query.split('|')[-1]
+        metric_path_substitution = f"{metric_head}|{active_node}|{metric_tail}"
+
+        params = appdynamics_request.params
+        params.update({'metric-path': metric_path_substitution})
+
         async with httpx.AsyncClient(
                 base_url=self.config.api_url,
                 params=appdynamics_request.params,
@@ -402,14 +416,13 @@ class AppdynamicsConnector(servo.BaseConnector):
                 raise
 
         data = response.json()[0]
-        self.logger.trace(f"Got response data for metric {metric}: {data}")
+        self.logger.trace(f"Got response data for metric {metric_path_substitution}: {data}")
 
         readings = []
 
-        # TEMP: just to see output
         for result_dict in data["metricValues"]:
             self.logger.info(
-                f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric}"
+                f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric_path_substitution}"
             )
 
         metric_path = data["metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-tuning|Calls per Minute"
@@ -432,12 +445,12 @@ class AppdynamicsConnector(servo.BaseConnector):
         return readings
 
     async def _query_appd_aggregate(
-            self, metric: AppdynamicsMetric, start: datetime, end: datetime
+            self, metric: AppdynamicsMetric, start: datetime, end: datetime, active_nodes: list
     ) -> List[servo.TimeSeries]:
 
         # Begin metric collection and aggregation for active nodes
         node_readings = await asyncio.gather(
-            *list(map(lambda m: self._appd_node_response(m, metric, start, end), self.active_nodes))
+            *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes))
         )
 
         aggregate_readings = []
@@ -476,7 +489,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         metric_head = '|'.join(metric.query.split('|')[:-2])
         metric_tail = metric.query.split('|')[-1]
-        metric_path_substitution = f"{metric_head}|{self.active_nodes[0]}|{metric_tail}"
+        metric_path_substitution = f"{metric_head}|{self.active_main_nodes[0]}|{metric_tail}"
 
         params = appdynamics_request.params
         params.update({'metric-path': metric_path_substitution})
@@ -501,7 +514,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         # TEMP: just to see output
         for result_dict in zip(aggregate_readings, data["metricValues"]):
-            self.logger.info(
+            self.logger.trace(
                 f"Captured {result_dict[0]} at {result_dict[1]['startTimeInMillis']} for aggregate metric: {metric}"
             )
 
@@ -548,7 +561,7 @@ class AppdynamicsConnector(servo.BaseConnector):
                 raise
 
         data = response.json()
-        nodes = [node['name'] for node in data if 'tuning' not in node['name']]
+        nodes = [node['name'] for node in data]
 
         self.logger.trace(f"Retrieved nodes for tier {self.config.tier}: {nodes}")
 
@@ -644,7 +657,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         # TEMP: just to see output
         for result_dict in node_data["metricValues"]:
-            self.logger.info(
+            self.logger.trace(
                 f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric_path_substitution}"
             )
 
