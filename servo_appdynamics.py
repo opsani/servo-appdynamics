@@ -367,7 +367,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         # Capture tuning measurements directly that do not require aggregation/processing
         direct_metrics = list(filter(lambda m: 'main' not in m.name, metrics__))
         direct_readings = await asyncio.gather(
-            *list(map(lambda m: self._appd_node_response(m, start, end, active_tuning_node), direct_metrics))
+            *list(map(lambda m: self._appd_node_response(active_tuning_node, m, start, end), direct_metrics))
         )
 
         # Capture measurements that require aggregation
@@ -441,7 +441,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         metric_head = '|'.join(metric.query.split('|')[:-2])
         metric_tail = metric.query.split('|')[-1]
-        metric_path_substitution = f"{metric_head}|{individual_node}|{metric_tail}"
+        metric_path_substitution = f"{metric_head}|{individual_node}|Calls per Minute"
 
         self.logger.trace(
             f"Querying AppDynamics (`{metric_path_substitution}`): {appdynamics_request.endpoint}"
@@ -486,7 +486,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     async def _query_appd_aggregate(
             self, metric: AppdynamicsMetric, start: datetime, end: datetime, active_nodes: List[str]
-    ) -> List[servo.TimeSeries]:
+    ):
         """Queries AppDynamics for measurements that need to be aggregated across multiple AppD nodes/K8s pods.
         Individual node responses are gathered via _appd_node_response(), transposed to synchronize reading times,
         and computed via either sum or average.
@@ -594,7 +594,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     async def _appd_node_response(
             self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
-    ) -> List[servo.TimeSeries]:
+    ):
         """Queries AppDynamics for measurements either used directly or in aggregation when a dynamic node is being read
         that requires the metric endpoint to be substituted from the config. Substitutes the metric path with the
         individual nodes endpoint, as well as substitutes reading values of 0 when the response is empty from a metric
