@@ -1,4 +1,4 @@
-FROM opsani/servox:edge
+FROM opsani/servox:v0.9.5
 
 COPY . /servo/servo_appdynamics
 
