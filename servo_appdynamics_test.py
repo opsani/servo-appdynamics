@@ -9,7 +9,7 @@ import pydantic
 
 import servo
 from servo.types import *
-from servo.connectors.appdynamics import (
+from servo_appdynamics import (
     AppdynamicsChecks,
     AppdynamicsConfiguration,
     AppdynamicsMetric,
