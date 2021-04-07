@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "servo-appdynamics"
-version = "0.7.1"
+version = "0.7.5"
 description = "AppDynamics connector for Opsani Servo"
 authors = ["Daniel Howell <daniel@opsani.com>"]
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ repository = "https://github.com/opsani/servo-appdynamics"
 [tool.poetry.dependencies]
 python = "^3.8"
 servox = "^0.9.5"
-pydantic = ">=1.7.3,<1.8.0"
+pydantic = "^1.8.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.1"
