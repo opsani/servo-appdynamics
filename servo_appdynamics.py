@@ -282,7 +282,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
     @servo.on_event()
-    def describe(self) -> servo.Description:
+    def describe(self, **kwargs) -> servo.Description:
         """Describes the current state of Metrics measured by querying AppDynamics.
 
         Returns:
