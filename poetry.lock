@@ -204,15 +204,15 @@ format = ["idna", "jsonpointer (>1.13)", "rfc3987", "strict-rfc3339", "webcolors
 format_nongpl = ["idna", "jsonpointer (>1.13)", "webcolors", "rfc3986-validator (>0.1.0)", "rfc3339-validator"]
 
 [[package]]
-name = "kubernetes-asyncio"
-version = "12.0.1"
-description = "Kubernetes asynchronous python client"
+name = "kubernetes-asyncio-cr-patch"
+version = "12.1.2"
+description = "Kubernetes asynchronous python client with patched custom resource API client"
 category = "main"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-aiohttp = ">=2.3.10,<4.0.0"
+aiohttp = ">=3.7.0,<4.0.0"
 certifi = ">=14.05.14"
 python-dateutil = ">=2.5.3"
 pyyaml = ">=3.12"
@@ -480,7 +480,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
 name = "servox"
-version = "0.10.3"
+version = "0.10.6"
 description = "Opsani Servo: The Next Generation"
 category = "main"
 optional = false
@@ -494,9 +494,9 @@ curlify2 = ">=1.0.0,<2.0.0"
 devtools = ">=0.6.0,<0.7.0"
 httpx = ">=0.17.0,<0.18.0"
 jsonschema = ">=3.2.0,<4.0.0"
-kubernetes_asyncio = ">=11.3,<13.0"
+kubernetes-asyncio-cr-patch = ">=12.1.2,<13.0.0"
 loguru = ">=0.5.1,<0.6.0"
-orjson = ">=3.5.1,<4.0.0"
+orjson = ">=3.5.0,<4.0.0"
 pyaml = ">=20.4.0,<21.0.0"
 pydantic = ">=1.8.1,<2.0.0"
 pyfiglet = ">=0.8.post1,<0.9"
@@ -642,7 +642,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "2c9de6c0bf5e64373505aeb721638606361c52c1cd395a5e903138e418c9ab7b"
+content-hash = "a50d84ba044b2a661ee6847a27d1b107aea0112588dda37151a4e1642860143d"
 
 [metadata.files]
 aiohttp = [
@@ -756,8 +756,8 @@ jsonschema = [
     {file = "jsonschema-3.2.0-py2.py3-none-any.whl", hash = "sha256:4e5b3cf8216f577bee9ce139cbe72eca3ea4f292ec60928ff24758ce626cd163"},
     {file = "jsonschema-3.2.0.tar.gz", hash = "sha256:c8a85b28d377cc7737e46e2d9f2b4f44ee3c0e1deac6bf46ddefc7187d30797a"},
 ]
-kubernetes-asyncio = [
-    {file = "kubernetes_asyncio-12.0.1.tar.gz", hash = "sha256:26cdec974d5a4bf3ea62fce1b250b0c684f9261a2894c6522cadfd7e35b1a1a1"},
+kubernetes-asyncio-cr-patch = [
+    {file = "kubernetes_asyncio_cr_patch-12.1.2.tar.gz", hash = "sha256:2e90c73b6cb3678eba397368c001bec27162f90e848aac71b3cfad9a476f938b"},
 ]
 loguru = [
     {file = "loguru-0.5.3-py3-none-any.whl", hash = "sha256:f8087ac396b5ee5f67c963b495d615ebbceac2796379599820e324419d53667c"},
@@ -955,8 +955,8 @@ semver = [
     {file = "semver-2.13.0.tar.gz", hash = "sha256:fa0fe2722ee1c3f57eac478820c3a5ae2f624af8264cbdf9000c980ff7f75e3f"},
 ]
 servox = [
-    {file = "servox-0.10.3-py3-none-any.whl", hash = "sha256:a781b41c392597534116ae78c7bcfa68fb4eedbf5f3fd0d2c1dbfeae844c744b"},
-    {file = "servox-0.10.3.tar.gz", hash = "sha256:54d9dbe55ee1b3b7cc4eed7ad4a3d23574ed2a41cc74fdd77e35f0bdc62c1741"},
+    {file = "servox-0.10.6-py3-none-any.whl", hash = "sha256:0c7ea83937123fbe6529f00e1b2db7394846bfb51614c7c81201a69eaddc1757"},
+    {file = "servox-0.10.6.tar.gz", hash = "sha256:d71cdcb6510579495e2b79060c66c2378eb368fb04f0bd78674a9d6e6458a759"},
 ]
 six = [
     {file = "six-1.15.0-py2.py3-none-any.whl", hash = "sha256:8b74bedcbbbaca38ff6d7491d76f2b06b3592611af620f8426e82dddb04a5ced"},
