@@ -159,11 +159,6 @@ class AppdynamicsConfiguration(servo.BaseConfiguration):
             **kwargs,
         )
 
-    @pydantic.validator("base_url")
-    @classmethod
-    def rstrip_base_url(cls, base_url):
-        return base_url.rstrip("/")
-
     @property
     def api_url(self) -> str:
         return f"{self.base_url}{API_PATH}"
