@@ -55,18 +55,6 @@ class TestAppdynamicsConfiguration:
                        "type": "type_error.none.not_allowed",
             } in error.errors()
 
-    def test_base_url_is_rstripped(self):
-        config = AppdynamicsConfiguration(
-            base_url="http://appdynamics.com/some/path/",
-            metrics=[],
-            username='user',
-            password='pass',
-            account='acc',
-            app_id='app',
-            tier='test-tier',
-        )
-        assert config.base_url == "http://appdynamics.com/some/path"
-
     def test_supports_localhost_url(self):
         config = AppdynamicsConfiguration(base_url="http://localhost:8090",
                                           metrics=[],
