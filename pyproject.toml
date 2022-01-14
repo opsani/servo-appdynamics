@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "servo-appdynamics"
-version = "0.7.5"
+version = "0.8.0"
 description = "AppDynamics connector for Opsani Servo"
 authors = ["Daniel Howell <daniel@opsani.com>"]
 license = "Apache-2.0"
@@ -8,8 +8,8 @@ homepage = "https://github.com/opsani/servo-appdynamics"
 repository = "https://github.com/opsani/servo-appdynamics"
 
 [tool.poetry.dependencies]
-python = "^3.8"
-servox = "^0.10.7"
+python = ">3.8,<=3.9.7"
+servox = "^2.0.0"
 # note: keep servox version equal to the one in Dockerfile
 
 [tool.poetry.dev-dependencies]
