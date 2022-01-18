@@ -88,10 +88,9 @@ class AppdynamicsConfiguration(servo.BaseConfiguration):
         """
         return cls(
             description="Update the app_id, tier and base_url and metrics to match your AppDynamics configuration. Username, account and password set via K8s secrets",
-            app_id='app-replace',
-            tier='tier-replace',
+            app_id="app-replace",
+            tier="tier-replace",
             metrics=[
-
                 # Main metrics
                 AppdynamicsMetric(
                     "main_payment_instance_count",
@@ -123,7 +122,6 @@ class AppdynamicsConfiguration(servo.BaseConfiguration):
                     servo.Unit.milliseconds,
                     query="Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-service|95th Percentile Response Time (ms)",
                 ),
-
                 # Tuning instance metrics
                 AppdynamicsMetric(
                     "tuning_payment_instance_count",
@@ -176,23 +174,25 @@ class AppdynamicsRequest(pydantic.BaseModel):
 
     @property
     def params(self) -> dict:
-        return {"metric-path": f"{self.query}",
-                "time-range-type": "BETWEEN_TIMES",  # Should remain non-configurable
-                "start-time": f"{int(self.start.timestamp() * 1000)}",
-                "end-time": f"{int(self.end.timestamp() * 1000)}",
-                "rollup": "false",  # Prevents aggregation/summarization
-                "output": "JSON"
-                }
+        return {
+            "metric-path": f"{self.query}",
+            "time-range-type": "BETWEEN_TIMES",  # Should remain non-configurable
+            "start-time": f"{int(self.start.timestamp() * 1000)}",
+            "end-time": f"{int(self.end.timestamp() * 1000)}",
+            "rollup": "false",  # Prevents aggregation/summarization
+            "output": "JSON",
+        }
 
     @property
     def endpoint(self) -> str:
-        return "".join(f"?metric-path={self.query}"
-                       + f"&time-range-type=BETWEEN_TIMES"  # Should remain non-configurable
-                       + f"&start-time={int(self.start.timestamp() * 1000)}"
-                       + f"&end-time={int(self.end.timestamp() * 1000)}"
-                       + f"&rollup=false"  # Prevents aggregation/summarization
-                       + f"&output=JSON"
-                       )
+        return "".join(
+            f"?metric-path={self.query}"
+            + f"&time-range-type=BETWEEN_TIMES"  # Should remain non-configurable
+            + f"&start-time={int(self.start.timestamp() * 1000)}"
+            + f"&end-time={int(self.end.timestamp() * 1000)}"
+            + f"&rollup=false"  # Prevents aggregation/summarization
+            + f"&output=JSON"
+        )
 
 
 class AppdynamicsChecks(servo.BaseChecks):
@@ -219,27 +219,37 @@ class AppdynamicsChecks(servo.BaseChecks):
                 f"Querying Appdynamics (`{metric.query}`): {appdynamics_request.endpoint}"
             )
 
-            metric_head = '|'.join(metric.query.split('|')[:-3])
-            metric_tail = metric.query.split('|')[-1]
+            metric_head = "|".join(metric.query.split("|")[:-3])
+            metric_tail = metric.query.split("|")[-1]
 
             # Ideally we'd check the actual query but there are edge cases where an often "0" metric can mime inactivity
             metric_path_substitution = f"{metric_head}|Calls per Minute"
 
             params = appdynamics_request.params
-            params.update({'metric-path': metric_path_substitution})
+            params.update({"metric-path": metric_path_substitution})
 
             async with httpx.AsyncClient(
-                    base_url=self.config.api_url,
-                    params=params,
+                base_url=self.config.api_url,
+                params=params,
             ) as client:
                 try:
-                    response = await client.get(f"applications/{self.config.app_id}/metric-data",
-                                                auth=(f"{self.config.username.get_secret_value()}@"
-                                                      f"{self.config.account.get_secret_value()}",
-                                                      self.config.password.get_secret_value()))
+                    response = await client.get(
+                        f"applications/{self.config.app_id}/metric-data",
+                        auth=(
+                            f"{self.config.username.get_secret_value()}@"
+                            f"{self.config.account.get_secret_value()}",
+                            self.config.password.get_secret_value(),
+                        ),
+                    )
                     response.raise_for_status()
-                except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
-                    self.logger.trace(f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}")
+                except (
+                    httpx.HTTPError,
+                    httpx.ReadTimeout,
+                    httpx.ConnectError,
+                ) as error:
+                    self.logger.trace(
+                        f"HTTP error encountered during GET {appdynamics_request.endpoint}: {error}"
+                    )
                     raise
 
             node_data = response.json()
@@ -253,7 +263,9 @@ class AppdynamicsChecks(servo.BaseChecks):
                 raise
 
             elif node_data[0]["metricValues"]:
-                self.logger.trace(f"Verified metric {metric_path_substitution} returning data")
+                self.logger.trace(
+                    f"Verified metric {metric_path_substitution} returning data"
+                )
                 return f"returned {len(node_data[0]['metricValues'])} results"
 
         return self.config.metrics, query_for_metric
@@ -261,7 +273,7 @@ class AppdynamicsChecks(servo.BaseChecks):
 
 @servo.metadata(
     description="AppDynamics Connector for Opsani",
-    version="0.7.5",
+    version="0.8.0",
     homepage="https://github.com/opsani/servo-appdynamics",
     license=servo.License.apache2,
     maturity=servo.Maturity.stable,
@@ -275,9 +287,9 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     @servo.on_event()
     async def check(
-            self,
-            matching: Optional[servo.CheckFilter] = None,
-            halt_on: Optional[servo.ErrorSeverity] = servo.ErrorSeverity.critical,
+        self,
+        matching: Optional[servo.CheckFilter] = None,
+        halt_on: Optional[servo.ErrorSeverity] = servo.ErrorSeverity.critical,
     ) -> List[servo.Check]:
         """Checks that the configuration is valid and the connector can capture
         measurements from AppDynamics.
@@ -319,7 +331,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     @servo.on_event()
     async def measure(
-            self, *, metrics: List[str] = None, control: servo.Control = servo.Control()
+        self, *, metrics: List[str] = None, control: servo.Control = servo.Control()
     ) -> servo.Measurement:
         """Queries AppDynamics for metrics as time series values and returns a
         Measurement object that aggregates the readings for processing by the
@@ -356,7 +368,9 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         def notifier(p):
             return self.logger.info(
-                p.annotate(f"waiting {sleep_duration} during metrics collection...", False),
+                p.annotate(
+                    f"waiting {sleep_duration} during metrics collection...", False
+                ),
                 progress=p.progress,
             )
 
@@ -366,10 +380,14 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
         # Separate instance_count metrics away from all_metrics
-        all_metrics = list(filter(lambda m: 'instance_count' not in m.name, metrics__))
-        instance_metrics = list(filter(lambda m: 'instance_count' in m.name, metrics__))
-        main_instance_metric = next(iter(filter(lambda m: 'main' in m.name, instance_metrics)))
-        tuning_instance_metric = next(iter(filter(lambda m: 'tuning' in m.name, instance_metrics)))
+        all_metrics = list(filter(lambda m: "instance_count" not in m.name, metrics__))
+        instance_metrics = list(filter(lambda m: "instance_count" in m.name, metrics__))
+        main_instance_metric = next(
+            iter(filter(lambda m: "main" in m.name, instance_metrics))
+        )
+        tuning_instance_metric = next(
+            iter(filter(lambda m: "tuning" in m.name, instance_metrics))
+        )
 
         # Capture the measurements
         self.logger.info(f"Querying AppDynamics for {len(metrics__)} metrics...")
@@ -379,47 +397,63 @@ class AppdynamicsConnector(servo.BaseConnector):
         nodes = await self._query_nodes()
 
         # Main set
-        main_nodes = list(filter(lambda x: 'tuning' not in x, nodes))
-        aggregate_metrics = list(filter(lambda m: 'main' in m.name, all_metrics))
+        main_nodes = list(filter(lambda x: "tuning" not in x, nodes))
+        aggregate_metrics = list(filter(lambda m: "main" in m.name, all_metrics))
         all_main_nodes_response = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_node_active(m, aggregate_metrics[0], start, end), main_nodes))
+            *list(map(lambda m: self._query_appd_node_active(m, aggregate_metrics[0], start, end), main_nodes,))
         )
-        active_main_nodes = list(filter(lambda x: x is not None, all_main_nodes_response))
-        self.logger.info(f"Found {len(active_main_nodes)} active nodes: {active_main_nodes}")
+        active_main_nodes = list(
+            filter(lambda x: x is not None, all_main_nodes_response)
+        )
+        self.logger.info(
+            f"Found {len(active_main_nodes)} active nodes: {active_main_nodes}"
+        )
 
         # Capture measurements that require aggregation
         main_instance_count = await asyncio.gather(
-            self._query_instance_count(main_instance_metric, start, end, active_main_nodes))
+            self._query_instance_count(main_instance_metric, start, end, active_main_nodes)
+        )
         aggregate_readings = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_aggregate(m, start, end, active_main_nodes), aggregate_metrics))
+            *list(map(lambda m: self._query_appd_aggregate(m, start, end, active_main_nodes), aggregate_metrics,))
         )
 
         # Tuning set
-        tuning_nodes = list(filter(lambda x: 'tuning' in x, nodes))
-        tuning_metrics = list(filter(lambda m: 'tuning' in m.name, all_metrics))
+        tuning_nodes = list(filter(lambda x: "tuning" in x, nodes))
+        tuning_metrics = list(filter(lambda m: "tuning" in m.name, all_metrics))
         tuning_nodes_response = await asyncio.gather(
-            *list(map(lambda m: self._query_appd_node_active(m, tuning_metrics[0], start, end), tuning_nodes))
+            *list(map(lambda m: self._query_appd_node_active(m, tuning_metrics[0], start, end), tuning_nodes,))
         )
-        active_tuning_node = next(iter(filter(lambda x: x is not None, tuning_nodes_response)), None)
+        active_tuning_node = next(
+            iter(filter(lambda x: x is not None, tuning_nodes_response)), None
+        )
 
         # Capture tuning measurements directly that do not require aggregation/processing
         if not active_tuning_node:
 
             self.logger.info(
-                f"No active tuning node, returning empty readings and will retry before aborting current adjustment")
+                f"No active tuning node, returning empty readings and will retry before aborting current adjustment"
+            )
             tuning_readings = []
 
         elif active_tuning_node:
 
             self.logger.info(f"Found active tuning node: {active_tuning_node}")
             tuning_instance_count = await asyncio.gather(
-                self._query_instance_count(tuning_instance_metric, start, end, [active_tuning_node]))
+                self._query_instance_count(
+                    tuning_instance_metric, start, end, [active_tuning_node]
+                )
+            )
             tuning_readings = await asyncio.gather(
-                *list(map(lambda m: self._appd_dynamic_node(active_tuning_node, m, start, end), tuning_metrics))
+                *list(map(lambda m: self._appd_dynamic_node(active_tuning_node, m, start, end), tuning_metrics,))
             )
 
         # Combine and clean
-        readings = tuning_readings + aggregate_readings + main_instance_count + tuning_instance_count
+        readings = (
+            tuning_readings
+            + aggregate_readings
+            + main_instance_count
+            + tuning_instance_count
+        )
 
         all_readings = (
             functools.reduce(lambda x, y: x + y, readings) if readings else []
@@ -436,19 +470,21 @@ class AppdynamicsConnector(servo.BaseConnector):
             nodes: A list of all nodes within the specified tier.
         """
 
-        self.logger.trace(
-            f"Querying AppDynamics nodes for tier: {self.config.tier}"
-        )
+        self.logger.trace(f"Querying AppDynamics nodes for tier: {self.config.tier}")
 
         endpoint = "/tiers/{self.config.tier}/nodes"
         data = self._appd_api(endpoint=endpoint)
-        nodes = [node['name'] for node in data]
+        nodes = [node["name"] for node in data]
 
         self.logger.trace(f"Retrieved nodes for tier {self.config.tier}: {nodes}")
         return nodes
 
     async def _query_appd_node_active(
-            self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
+        self,
+        individual_node: str,
+        metric: AppdynamicsMetric,
+        start: datetime,
+        end: datetime,
     ) -> Optional[str]:
         """Queries AppDynamics to see if a given node is actively reporting.
 
@@ -466,9 +502,8 @@ class AppdynamicsConnector(servo.BaseConnector):
             base_url=self.config.api_url, metric=metric, start=start, end=end
         )
 
-        metric_head = '|'.join(metric.query.split('|')[:-2])
-        metric_tail = metric.query.split('|')[
-            -1]  # TODO: rationalize having this available - throughput (below) should always suffice
+        metric_head = "|".join(metric.query.split("|")[:-2])
+        metric_tail = metric.query.split("|")[-1]  # TODO: rationalize having this available - throughput (below) should always suffice
         metric_path_substitution = f"{metric_head}|{individual_node}|Calls per Minute"
 
         self.logger.trace(
@@ -476,7 +511,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
         params = appdynamics_request.params
-        params.update({'metric-path': metric_path_substitution})
+        params.update({"metric-path": metric_path_substitution})
 
         node_data = self._appd_api(params=params)
 
@@ -495,7 +530,11 @@ class AppdynamicsConnector(servo.BaseConnector):
             return individual_node
 
     async def _query_appd_aggregate(
-            self, metric: AppdynamicsMetric, start: datetime, end: datetime, active_nodes: List[str]
+        self,
+        metric: AppdynamicsMetric,
+        start: datetime,
+        end: datetime,
+        active_nodes: List[str],
     ):
         """Queries AppDynamics for measurements that need to be aggregated across multiple AppD nodes/K8s pods.
         Individual node responses are gathered via _appd_node_response(), transposed to synchronize reading times,
@@ -513,13 +552,15 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         # Begin metric collection and aggregation for active nodes
         node_readings = await asyncio.gather(
-            *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes))
+            *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes,))
         )
 
         aggregate_readings = []
 
         # Transpose node readings from [nodes[readings]] to [readings[nodes]] for computed aggregation
-        transposed_node_readings, max_length_node_items = node_sync_and_transpose(node_readings)
+        transposed_node_readings, max_length_node_items = node_sync_and_transpose(
+            node_readings
+        )
 
         for node_readings in transposed_node_readings:
             aggregate_data_points: List[Union[int, float]] = []
@@ -528,18 +569,22 @@ class AppdynamicsConnector(servo.BaseConnector):
                 aggregate_data_points.append(data_points.value)
 
             # Main aggregation logic
-            if metric.unit == 'rpm':
+            if metric.unit == "rpm":
                 computed_aggregate = sum(aggregate_data_points)
 
                 self.logger.trace(
-                    f"Aggregating values {aggregate_data_points} for {metric.unit} via sum into {computed_aggregate}")
+                    f"Aggregating values {aggregate_data_points} for {metric.unit} via sum into {computed_aggregate}"
+                )
                 aggregate_readings.append(computed_aggregate)
 
-            elif metric.unit == 'ms':
-                computed_aggregate = sum(aggregate_data_points) / len(aggregate_data_points)
+            elif metric.unit == "ms":
+                computed_aggregate = sum(aggregate_data_points) / len(
+                    aggregate_data_points
+                )
 
                 self.logger.trace(
-                    f"Aggregating values {aggregate_data_points} for {metric.unit} via average into {computed_aggregate}")
+                    f"Aggregating values {aggregate_data_points} for {metric.unit} via average into {computed_aggregate}"
+                )
                 aggregate_readings.append(computed_aggregate)
 
         # Syncing aggregate values to data_points from max_length node readings
@@ -589,13 +634,15 @@ class AppdynamicsConnector(servo.BaseConnector):
         readings = []
         data_points: List[servo.DataPoint] = []
 
-        for max_items, aggregate_value in zip(max_length_node_items, aggregate_readings):
+        for max_items, aggregate_value in zip(
+            max_length_node_items, aggregate_readings
+        ):
             self.logger.trace(
                 f"Syncing aggregate metric {metric.name} value {aggregate_value} to time {max_items.time}"
             )
-            data_points.append(servo.DataPoint(
-                metric, max_items.time, float(aggregate_value)
-            ))
+            data_points.append(
+                servo.DataPoint(metric, max_items.time, float(aggregate_value))
+            )
 
         readings.append(
             servo.TimeSeries(
@@ -607,7 +654,11 @@ class AppdynamicsConnector(servo.BaseConnector):
         return readings
 
     async def _appd_node_response(
-            self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
+        self,
+        individual_node: str,
+        metric: AppdynamicsMetric,
+        start: datetime,
+        end: datetime,
     ):
         """Queries AppDynamics for measurements either used directly or in aggregation when a dynamic node is being read
         that requires the metric endpoint to be substituted from the config. Substitutes the metric path with the
@@ -628,8 +679,8 @@ class AppdynamicsConnector(servo.BaseConnector):
             base_url=self.config.api_url, metric=metric, start=start, end=end
         )
 
-        metric_head = '|'.join(metric.query.split('|')[:-2])
-        metric_tail = metric.query.split('|')[-1]
+        metric_head = "|".join(metric.query.split("|")[:-2])
+        metric_tail = metric.query.split("|")[-1]
         metric_path_substitution = f"{metric_head}|{individual_node}|{metric_tail}"
 
         self.logger.trace(
@@ -637,10 +688,12 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
         params = appdynamics_request.params
-        params.update({'metric-path': metric_path_substitution})
+        params.update({"metric-path": metric_path_substitution})
 
         node_data = self._appd_api(params=params)
-        self.logger.trace(f"Got response data for metric {metric_path_substitution}: {node_data}")
+        self.logger.trace(
+            f"Got response data for metric {metric_path_substitution}: {node_data}"
+        )
 
         data_points: List[servo.DataPoint] = []
 
@@ -654,18 +707,22 @@ class AppdynamicsConnector(servo.BaseConnector):
             )
 
             # Calls per Minute is an always-reporting metric that is good to substitute
-            metric_path_substitution = f"{metric_head}|{individual_node}|Calls per Minute"
+            metric_path_substitution = (
+                f"{metric_head}|{individual_node}|Calls per Minute"
+            )
 
             params = appdynamics_request.params
-            params.update({'metric-path': metric_path_substitution})
+            params.update({"metric-path": metric_path_substitution})
 
             node_data = self._appd_api(params=params)
-            self.logger.trace(f"Got substitute data for {metric_tail} on node: {individual_node}")
+            self.logger.trace(
+                f"Got substitute data for {metric_tail} on node: {individual_node}"
+            )
 
             # Substitute in 0's for the actual metric values
             for result_dict in node_data["metricValues"]:
                 data_point = servo.DataPoint(
-                    metric, result_dict['startTimeInMillis'], float(0)
+                    metric, result_dict["startTimeInMillis"], float(0)
                 )
                 data_points.append(data_point)
 
@@ -675,14 +732,18 @@ class AppdynamicsConnector(servo.BaseConnector):
                 f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric_path_substitution}"
             )
             data_point = servo.DataPoint(
-                metric, result_dict['startTimeInMillis'], float(0)
+                metric, result_dict["startTimeInMillis"], float(0)
             )
             data_points.append(data_point)
 
         return data_points
 
     async def _query_instance_count(
-            self, metric: AppdynamicsMetric, start: datetime, end: datetime, active_nodes: List[str]
+        self,
+        metric: AppdynamicsMetric,
+        start: datetime,
+        end: datetime,
+        active_nodes: List[str],
     ):
         """Queries AppDynamics for instances count. Individual node responses are gathered via _appd_node_response(),
         transposed to synchronize reading times, and computed via either sum or average.
@@ -704,12 +765,14 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         if len(active_nodes) > 1:
             node_readings = await asyncio.gather(
-                *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes))
+                *list(map(lambda m: self._appd_node_response(m, metric, start, end), active_nodes,))
             )
             instance_count_readings: List[int] = []
 
             # Transpose node readings from [nodes[readings]] to [readings[nodes]] for computed aggregation
-            transposed_node_readings, max_length_node_items = node_sync_and_transpose(node_readings)
+            transposed_node_readings, max_length_node_items = node_sync_and_transpose(
+                node_readings
+            )
 
             for node_reading in transposed_node_readings:
                 value = [reading.value for reading in node_reading]
@@ -718,33 +781,39 @@ class AppdynamicsConnector(servo.BaseConnector):
                 instance_count_readings.append(instant_instance_count)
 
                 self.logger.trace(
-                    f"Found instance count {instant_instance_count} at time {node_reading[0].time}")
+                    f"Found instance count {instant_instance_count} at time {node_reading[0].time}"
+                )
 
-            for max_items, aggregate_value in zip(max_length_node_items, instance_count_readings):
+            for max_items, aggregate_value in zip(
+                max_length_node_items, instance_count_readings
+            ):
                 self.logger.trace(
                     f"Syncing aggregate metric {metric.name} value {aggregate_value} to time {max_items.time}"
                 )
-                data_points.append(servo.DataPoint(
-                    metric, max_items.time, float(aggregate_value)
-                ))
+                data_points.append(
+                    servo.DataPoint(metric, max_items.time, float(aggregate_value))
+                )
 
         # TODO: Cleanup this conditional handling for single instance counting
         elif len(active_nodes) == 1:
 
-            node_readings = await asyncio.gather(self._appd_node_response(active_nodes[0], metric, start, end))
+            node_readings = await asyncio.gather(
+                self._appd_node_response(active_nodes[0], metric, start, end)
+            )
             instance_count_readings = [float(1) for reading in node_readings]
 
             for reading in node_readings:
                 self.logger.trace(
-                    f"Found single instance count at time {reading[0].time}")
+                    f"Found single instance count at time {reading[0].time}"
+                )
 
             for item, instance_value in zip(node_readings, instance_count_readings):
                 self.logger.trace(
                     f"Syncing instance count {instance_value} to time {item.time}"
                 )
-                data_points.append(servo.DataPoint(
-                    metric, item.time, float(instance_value)
-                ))
+                data_points.append(
+                    servo.DataPoint(metric, item.time, float(instance_value))
+                )
 
         readings.append(
             servo.TimeSeries(
@@ -756,7 +825,11 @@ class AppdynamicsConnector(servo.BaseConnector):
         return readings
 
     async def _appd_dynamic_node(
-            self, individual_node: str, metric: AppdynamicsMetric, start: datetime, end: datetime
+        self,
+        individual_node: str,
+        metric: AppdynamicsMetric,
+        start: datetime,
+        end: datetime,
     ):
         """Queries AppDynamics for measurements used directly when a dynamic node is being read that requires the
         metric endpoint to be substituted from the config. Substitutes the metric path with the individual nodes
@@ -777,8 +850,8 @@ class AppdynamicsConnector(servo.BaseConnector):
             base_url=self.config.api_url, metric=metric, start=start, end=end
         )
 
-        metric_head = '|'.join(metric.query.split('|')[:-2])
-        metric_tail = metric.query.split('|')[-1]
+        metric_head = "|".join(metric.query.split("|")[:-2])
+        metric_tail = metric.query.split("|")[-1]
         metric_path_substitution = f"{metric_head}|{individual_node}|{metric_tail}"
 
         self.logger.trace(
@@ -786,14 +859,19 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
 
         params = appdynamics_request.params
-        params.update({'metric-path': metric_path_substitution})
+        params.update({"metric-path": metric_path_substitution})
 
         node_data = self._appd_api(params=params)
-        self.logger.trace(f"Got response data for metric {metric_path_substitution}: {node_data}")
+        self.logger.trace(
+            f"Got response data for metric {metric_path_substitution}: {node_data}"
+        )
 
         metric_path = node_data[
-            "metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Calls per Minute"
-        metric_name = node_data["metricName"]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
+            "metricPath"
+        ]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Calls per Minute"
+        metric_name = node_data[
+            "metricName"
+        ]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
 
         node_readings: List[servo.TimeSeries] = []
         data_points: List[servo.DataPoint] = []
@@ -808,41 +886,48 @@ class AppdynamicsConnector(servo.BaseConnector):
                 f"Metric {metric_tail} failed for individual node: {individual_node}, substituting for Calls per Minute"
             )
 
-            metric_path_substitution = f"{metric_head}|{individual_node}|Calls per Minute"
+            metric_path_substitution = (
+                f"{metric_head}|{individual_node}|Calls per Minute"
+            )
             params = appdynamics_request.params
-            params.update({'metric-path': metric_path_substitution})
+            params.update({"metric-path": metric_path_substitution})
 
             node_data = self._appd_api(params=params)
-            self.logger.trace(f"Got substitute data for {metric_tail} on node: {individual_node}")
+            self.logger.trace(
+                f"Got substitute data for {metric_tail} on node: {individual_node}"
+            )
 
             # Substitute in 0's for the actual metric values
             for result_dict in node_data["metricValues"]:
-                data_points.append(servo.DataPoint(
-                    metric, result_dict['startTimeInMillis'], float(0)
-                ))
+                data_points.append(
+                    servo.DataPoint(metric, result_dict["startTimeInMillis"], float(0))
+                )
 
         # Main capture logic
         for result_dict in node_data["metricValues"]:
             self.logger.trace(
                 f"Captured {result_dict['value']} at {result_dict['startTimeInMillis']} for {metric_path_substitution}"
             )
-            data_points.append(servo.DataPoint(
-                metric, result_dict['startTimeInMillis'], float(result_dict['value'])
-            ))
+            data_points.append(
+                servo.DataPoint(
+                    metric,
+                    result_dict["startTimeInMillis"],
+                    float(result_dict["value"]),
+                )
+            )
 
         node_readings.append(
             servo.TimeSeries(
                 metric,
                 data_points,
                 id=f"{{metric_path={metric_path}, metric_name={metric_name}}}",
-
             )
         )
 
         return node_readings
 
     async def _query_appd_direct(
-            self, metric: AppdynamicsMetric, start: datetime, end: datetime
+        self, metric: AppdynamicsMetric, start: datetime, end: datetime
     ) -> List[servo.TimeSeries]:
         """Queries AppDynamics for measurements that are taken from a metric exactly as defined in the config, e.g.
         from nodes that are not dynamic and remain consistent. Currently not utilized in the main/tuning workflow as
@@ -876,15 +961,22 @@ class AppdynamicsConnector(servo.BaseConnector):
             )
 
         metric_path = data[
-            "metricPath"]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-tuning|Calls per Minute"
-        metric_name = data["metricName"]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
+            "metricPath"
+        ]  # e.g. "Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-tuning|Calls per Minute"
+        metric_name = data[
+            "metricName"
+        ]  # e.g. "BTM|BTs|BT:270723|Component:8435|Calls per Minute"
 
         data_points: List[servo.DataPoint] = []
 
         for result_dict in data["metricValues"]:
-            data_points.append(servo.DataPoint(
-                metric, result_dict['startTimeInMillis'], float(result_dict['value'])
-            ))
+            data_points.append(
+                servo.DataPoint(
+                    metric,
+                    result_dict["startTimeInMillis"],
+                    float(result_dict["value"]),
+                )
+            )
 
         readings.append(
             servo.TimeSeries(
@@ -896,7 +988,9 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         return readings
 
-    async def _appd_api(self, endpoint: str = "/metric-data", params: dict = {'output': 'JSON'}) -> list:
+    async def _appd_api(
+        self, endpoint: str = "/metric-data", params: dict = {"output": "JSON"}
+    ) -> list:
         """Base function for accessing the AppDynamics API. Reads credentials from the config loaded by the connector
 
         Args:
@@ -907,17 +1001,23 @@ class AppdynamicsConnector(servo.BaseConnector):
         """
 
         async with httpx.AsyncClient(
-                base_url=self.config.api_url,
-                params=params,
+            base_url=self.config.api_url,
+            params=params,
         ) as client:
             try:
-                response = await client.get(f"applications/{self.config.app_id}/{endpoint}",
-                                            auth=(f"{self.config.username.get_secret_value()}@"
-                                                  f"{self.config.account.get_secret_value()}",
-                                                  self.config.password.get_secret_value()))
+                response = await client.get(
+                    f"applications/{self.config.app_id}/{endpoint}",
+                    auth=(
+                        f"{self.config.username.get_secret_value()}@"
+                        f"{self.config.account.get_secret_value()}",
+                        self.config.password.get_secret_value(),
+                    ),
+                )
                 response.raise_for_status()
             except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
-                self.logger.trace(f"HTTP error encountered during GET {response.url}: {error}")
+                self.logger.trace(
+                    f"HTTP error encountered during GET {response.url}: {error}"
+                )
                 raise
 
         data = response.json()[0]
@@ -925,7 +1025,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
 
 async def node_sync_and_transpose(
-        node_readings: List[List[servo.DataPoint]]
+    node_readings: List[List[servo.DataPoint]],
 ) -> Tuple[List[List[servo.DataPoint]], List[servo.DataPoint]]:
     """Converts a multi-node aggregate response into a uniform reading, inserting substitute zero value metric data
     for times the node (thus pod) did not exist, synchronized to timestamps from the longest living node within the
@@ -940,7 +1040,11 @@ async def node_sync_and_transpose(
     """
     readings_lengths = [len(node) for node in node_readings]
     max_length = max(readings_lengths)
-    max_length_node_index, max_length_node_items = [(index, items) for index, items in enumerate(node_readings) if len(items) == max_length][0]
+    max_length_node_index, max_length_node_items = [
+        (index, items)
+        for index, items in enumerate(node_readings)
+        if len(items) == max_length
+    ][0]
     max_length_times = [reading.time for reading in max_length_node_items]
 
     # Pad 0 values for nodes with shorter lives, synced to timestamp of longest-lived node
@@ -948,9 +1052,7 @@ async def node_sync_and_transpose(
         times = [reading.time for reading in node]
         unset_readings = list(set(max_length_times) - set(times))
         for time in unset_readings:
-            datapoint = servo.DataPoint(
-                node[0].metric, time, float(0)
-            )
+            datapoint = servo.DataPoint(node[0].metric, time, float(0))
             node.append(datapoint)
         node.sort(key=lambda x: x.time)
 

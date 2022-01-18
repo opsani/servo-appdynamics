@@ -10,6 +10,7 @@ repository = "https://github.com/opsani/servo-appdynamics"
 [tool.poetry.dependencies]
 python = ">3.8,<=3.9.7"
 servox = "^2.0.0"
+pydantic = "1.8.2"
 # note: keep servox version equal to the one in Dockerfile
 
 [tool.poetry.dev-dependencies]
