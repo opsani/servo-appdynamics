@@ -394,7 +394,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         # Parse active nodes and metrics between main and tuning
         # Collect nodes
-        nodes = await self._query_nodes()
+        nodes = await asyncio.gather(self._query_nodes())
 
         # Main set
         main_nodes = list(filter(lambda x: "tuning" not in x, nodes))
