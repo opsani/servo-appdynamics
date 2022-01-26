@@ -586,10 +586,11 @@ class TestAppdynamicsConnector:
         # Raw readings are grouped in [nodes[time]]
         assert all([node[0].time == node_readings[0][0].time for node in node_readings])
 
-        # Readings are grouped in [times[nodes]]
         transposed_node_readings, max_length_node_items = connector.node_sync_and_transpose(
             node_readings
         )
+
+        # After transpose, readings are grouped in [times[nodes]]
         for time in transposed_node_readings:
             assert all([node.time == time[0].time for node in time[1:]])
 

@@ -5,6 +5,7 @@ import functools
 import re
 from typing import Iterable, Optional, Union
 
+import backoff
 import httpx
 import pydantic
 
@@ -474,7 +475,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         )
         if not active_main_nodes:
             return
-        
+
         self.logger.info(
             f"Found {len(active_main_nodes)} active nodes: {active_main_nodes}"
         )
@@ -1060,6 +1061,13 @@ class AppdynamicsConnector(servo.BaseConnector):
 
         return readings
 
+    @backoff.on_exception(
+        backoff.expo,
+        httpx.HTTPError,
+        max_time=lambda: self.config.settings.backoff.max_time(),
+        max_tries=lambda: self.config.settings.backoff.max_tries(),
+        # on_giveup=giveup,
+    )
     async def _appd_api(
         self, endpoint: str = "metric-data", params: dict = {"output": "JSON"}
     ) -> Optional[list]:
