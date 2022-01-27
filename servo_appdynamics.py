@@ -598,7 +598,9 @@ class AppdynamicsConnector(servo.BaseConnector):
             Optional[str]. The node name if actively reporting, otherwise None.
         """
 
-        node_data = await self._appd_api(metric=metric, node=node, start=start, end=end)
+        node_data = await self._appd_api(
+            metric=metric, node=node, start=start, end=end, override=True
+        )
 
         if not node_data:
             self.logger.trace(f"Found inactive node: {node}")
@@ -704,7 +706,7 @@ class AppdynamicsConnector(servo.BaseConnector):
 
     async def _appd_node_response(
         self,
-        individual_node: str,
+        node: str,
         metric: AppdynamicsMetric,
         start: datetime,
         end: datetime,
@@ -724,7 +726,7 @@ class AppdynamicsConnector(servo.BaseConnector):
             Readings: A list of TimeSeries with metric readings.
         """
 
-        node_data = await self._appd_api(metric=metric, start=start, end=end)
+        node_data = await self._appd_api(metric=metric, node=node, start=start, end=end)
 
         data_points: list[servo.DataPoint] = []
 
@@ -735,7 +737,7 @@ class AppdynamicsConnector(servo.BaseConnector):
         if not node_data[0]["metricValues"]:
 
             substitute_node_data = await self._appd_api(
-                metric=metric, start=start, end=end, override=True
+                metric=metric, node=node, start=start, end=end, override=True
             )
 
             self.logger.trace(
@@ -1024,14 +1026,14 @@ class AppdynamicsConnector(servo.BaseConnector):
                 f"Querying AppDynamics (`{full_metric_path}`): {appdynamics_request.endpoint}"
             )
 
-            params = appdynamics_request.params
-            params.update({"metric-path": full_metric_path})
+            request_params = appdynamics_request.params
+            request_params.update({"metric-path": full_metric_path})
         else:
-            params = params
+            request_params = params
 
         async with httpx.AsyncClient(
             base_url=self.config.api_url,
-            params=params,
+            params=request_params,
         ) as client:
             try:
                 response = await client.get(

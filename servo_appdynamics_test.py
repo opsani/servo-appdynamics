@@ -533,7 +533,7 @@ class TestAppdynamicsConnector:
         measurement = await connector._appd_node_response(
             start=start,
             end=end,
-            individual_node="frontend-service--1",
+            node="frontend-service--1",
             metric=connector.metrics()[0],
         )
         assert request.called
