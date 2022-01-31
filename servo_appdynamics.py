@@ -741,7 +741,7 @@ class AppdynamicsConnector(servo.BaseConnector):
             )
 
             self.logger.trace(
-                f"Got substitute data for {metric.query} on node: {individual_node}"
+                f"Got substitute data for {metric.query} on node: {node}"
             )
 
             # Substitute in 0's for the actual metric values
@@ -899,7 +899,7 @@ class AppdynamicsConnector(servo.BaseConnector):
             node_data = await self._appd_api(
                 metric=metric, node=node, start=start, end=end, override=True
             )
-            self.logger.trace(f"Got substitute data for {metric_tail} on node: {node}")
+            self.logger.trace(f"Got substitute data for {metric.query} on node: {node}")
 
             # Substitute in 0's for the actual metric values
             for result_dict in node_data[0]["metricValues"]:
@@ -984,7 +984,7 @@ class AppdynamicsConnector(servo.BaseConnector):
     @backoff.on_exception(
         backoff.expo,
         (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError),
-        max_tries=8,
+        max_tries=10,
         # on_giveup=giveup,
     )
     async def _appd_api(
@@ -1047,7 +1047,7 @@ class AppdynamicsConnector(servo.BaseConnector):
                 response.raise_for_status()
             except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
                 self.logger.trace(
-                    f"HTTP error encountered during GET {response.url}: {error}"
+                    f"HTTP error encountered during GET {error}"
                 )
                 raise
 
