@@ -673,9 +673,8 @@ class AppdynamicsConnector(servo.BaseConnector):
                 nonzero_aggregate_data_points = list(
                     filter(lambda x: x > 0, aggregate_data_points)
                 )
-                computed_aggregate = sum(nonzero_aggregate_data_points) / len(
-                    aggregate_data_points
-                )
+                denominator = len(nonzero_aggregate_data_points) if len(nonzero_aggregate_data_points) > 0 else 1
+                computed_aggregate = sum(nonzero_aggregate_data_points) / denominator
 
                 self.logger.trace(
                     f"Aggregating nonzero values {aggregate_data_points} for {metric.query} ({metric.unit}) via average into {computed_aggregate}"
