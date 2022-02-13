@@ -103,12 +103,12 @@ class AppdynamicsConfiguration(servo.BaseConfiguration):
                     query="Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-service|Calls per Minute",
                 ),
                 AppdynamicsMetric(
-                    "main_payment_request_rate_total",
+                    "main_payment_request_rate",
                     servo.Unit.requests_per_minute,
                     query="Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-service|Calls per Minute",
                 ),
                 AppdynamicsMetric(
-                    "main_payment_error_rate_total",
+                    "main_payment_error_rate",
                     servo.Unit.requests_per_minute,
                     query="Business Transaction Performance|Business Transactions|frontend-service|/payment|Individual Nodes|frontend-service|Errors per Minute",
                 ),
@@ -659,27 +659,16 @@ class AppdynamicsConnector(servo.BaseConnector):
             for data_points in time_reading:
                 aggregate_data_points.append(data_points.value)
 
-            # Main aggregation logic
-            if metric.unit == "rpm":
-                computed_aggregate = sum(aggregate_data_points)
+            nonzero_aggregate_data_points = list(
+                filter(lambda x: x > 0, aggregate_data_points)
+            )
+            denominator = len(nonzero_aggregate_data_points) if len(nonzero_aggregate_data_points) > 0 else 1
+            computed_aggregate = sum(nonzero_aggregate_data_points) / denominator
 
-                self.logger.trace(
-                    f"Aggregating values {aggregate_data_points} for {metric.query} ({metric.unit}) via sum into {computed_aggregate}"
-                )
-                aggregate_readings.append(computed_aggregate)
-
-            elif metric.unit == "ms":
-
-                nonzero_aggregate_data_points = list(
-                    filter(lambda x: x > 0, aggregate_data_points)
-                )
-                denominator = len(nonzero_aggregate_data_points) if len(nonzero_aggregate_data_points) > 0 else 1
-                computed_aggregate = sum(nonzero_aggregate_data_points) / denominator
-
-                self.logger.trace(
-                    f"Aggregating nonzero values {aggregate_data_points} for {metric.query} ({metric.unit}) via average into {computed_aggregate}"
-                )
-                aggregate_readings.append(computed_aggregate)
+            self.logger.trace(
+                f"Aggregating nonzero values {aggregate_data_points} for {metric.query} ({metric.unit}) via average into {computed_aggregate}"
+            )
+            aggregate_readings.append(computed_aggregate)
 
         readings: list[servo.TimeSeries] = []
         data_points: list[servo.DataPoint] = []
