@@ -16,7 +16,7 @@ servox = "^0.10.7"
 pytest = "^6.2.4"
 pytest-asyncio = "^0.15.1"
 respx = "^0.16.3"
-freezegun = "^1.1.0"
+freezegun = "^1.2.0"
 
 [tool.poetry.plugins."servo.connectors"]
 "servo-appdynamics" = "servo_appdynamics:AppdynamicsConnector"
