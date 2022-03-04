@@ -14,7 +14,7 @@ servox = "^0.10.7"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
-pytest-asyncio = "^0.15.1"
+pytest-asyncio = "^0.18.2"
 respx = "^0.16.3"
 freezegun = "^1.1.0"
 
