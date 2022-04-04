@@ -1,4 +1,6 @@
-FROM opsani/servox:v0.10.7
+ARG PYTHON_VERSION=3.9.7
+
+FROM opsani/servox:v2.0.0
 # note: keep the servox version equal to the one in pyproject.toml
 
 WORKDIR /servo/servo_appdynamics
