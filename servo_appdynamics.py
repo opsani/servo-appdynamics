@@ -662,7 +662,11 @@ class AppdynamicsConnector(servo.BaseConnector):
             nonzero_aggregate_data_points = list(
                 filter(lambda x: x > 0, aggregate_data_points)
             )
-            denominator = len(nonzero_aggregate_data_points) if len(nonzero_aggregate_data_points) > 0 else 1
+            denominator = (
+                len(nonzero_aggregate_data_points)
+                if len(nonzero_aggregate_data_points) > 0
+                else 1
+            )
             computed_aggregate = sum(nonzero_aggregate_data_points) / denominator
 
             self.logger.trace(
@@ -728,9 +732,7 @@ class AppdynamicsConnector(servo.BaseConnector):
                 metric=metric, node=node, start=start, end=end, override=True
             )
 
-            self.logger.trace(
-                f"Got substitute data for {metric.query} on node: {node}"
-            )
+            self.logger.trace(f"Got substitute data for {metric.query} on node: {node}")
 
             # Substitute in 0's for the actual metric values
             for substitute_result_dict in substitute_node_data[0]["metricValues"]:
@@ -1034,9 +1036,7 @@ class AppdynamicsConnector(servo.BaseConnector):
                 )
                 response.raise_for_status()
             except (httpx.HTTPError, httpx.ReadTimeout, httpx.ConnectError) as error:
-                self.logger.trace(
-                    f"HTTP error encountered during GET {error}"
-                )
+                self.logger.trace(f"HTTP error encountered during GET {error}")
                 raise
 
         data = response.json()

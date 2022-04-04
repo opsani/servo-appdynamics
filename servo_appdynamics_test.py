@@ -586,9 +586,10 @@ class TestAppdynamicsConnector:
         # Raw readings are grouped in [nodes[time]]
         assert all([node[0].time == node_readings[0][0].time for node in node_readings])
 
-        transposed_node_readings, max_length_node_items = connector.node_sync_and_transpose(
-            node_readings
-        )
+        (
+            transposed_node_readings,
+            max_length_node_items,
+        ) = connector.node_sync_and_transpose(node_readings)
 
         # After transpose, readings are grouped in [times[nodes]]
         for time in transposed_node_readings:
@@ -605,11 +606,22 @@ class TestAppdynamicsConnector:
         )
         active_nodes = [f"frontend-service--{i+1}" for i in range(5)]
         aggregate_readings = await connector._query_appd_aggregate(
-                start=start,
-                end=end,
-                active_nodes=active_nodes,
-                metric=metrics[1],
-            )
+            start=start,
+            end=end,
+            active_nodes=active_nodes,
+            metric=metrics[1],
+        )
         assert request.called
+        direct_values = [
+            metric_value["value"]
+            for metric_value in overall_application_performance_throughput_raw[0][
+                "metricValues"
+            ]
+        ]
         for node in aggregate_readings:
-            assert all([data_point.value > 5000 for data_point in node])
+            assert all(
+                [
+                    data_point.value == direct_point
+                    for data_point, direct_point in zip(node, direct_values)
+                ]
+            )
